@@ -17,6 +17,13 @@ Autoloader::register($backendRoot . '/src');
 /** @var array $app */
 $app = require $backendRoot . '/config/app.php';
 
+// Sunucuya özel ayarlar (sırlar, base_path/allowed_ips override'ları).
+// Git'e girmez, otomatik güncelleme bu dosyaya DOKUNMAZ.
+$localConfigPath = $backendRoot . '/config/app.local.php';
+if (is_file($localConfigPath)) {
+    $app = array_merge($app, require $localConfigPath);
+}
+
 // Repo dışındaki config: $config['db'] ve Domain sabitini tanımlar.
 $config = [];
 if (is_file($app['external_config_path'])) {

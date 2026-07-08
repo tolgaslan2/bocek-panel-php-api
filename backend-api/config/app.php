@@ -32,10 +32,21 @@ return [
     // Bearer token doğrulaması açık mı? Test için false yapabilirsin.
     'auth_enabled' => true,
 
-    // Auth GEREKTİRMEYEN kaynaklar (ilk yol segmenti). tokens = token üretimi.
-    'public_resources' => ['tokens'],
+    // Auth GEREKTİRMEYEN kaynaklar (ilk yol segmenti). tokens = token üretimi,
+    // update = otomatik güncelleme (kendi "deploy_secret" ile korunur).
+    'public_resources' => ['tokens', 'update'],
 
     // DB bilgileri ($config['db']) ve Domain sabitinin geldiği,
     // repo dışındaki config dosyasının yolu (backend-api/../api/config.php).
     'external_config_path' => dirname(__DIR__, 2) . '/api/config.php',
+
+    // ── Otomatik güncelleme (backend-api/update) ────────────────────────────
+    // Sır değildir, repoda kalabilir. Sırlar (deploy_secret, github_token)
+    // config/app.local.php dosyasından gelir (bkz. app.local.php.example).
+    'github_owner'  => 'boceksoft',
+    'github_repo'   => 'bocek-panel-php-api',
+    'github_branch' => 'main',
+
+    // GitHub private repo ise: sadece bu repoya "Contents: Read-only"
+    // izniyle bir Fine-grained Personal Access Token.
 ];

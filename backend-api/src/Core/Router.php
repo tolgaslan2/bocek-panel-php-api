@@ -31,11 +31,15 @@ final class Router
     /** @var Database */
     private $db;
 
-    public function __construct(Request $request, Response $response, Database $db)
+    /** @var array */
+    private $app;
+
+    public function __construct(Request $request, Response $response, Database $db, array $app = [])
     {
         $this->request = $request;
         $this->response = $response;
         $this->db = $db;
+        $this->app = $app;
     }
 
     public function dispatch(): void
@@ -60,7 +64,7 @@ final class Router
             throw new HttpException('Endpoint bulunamadı.', 'NOT_FOUND', 404);
         }
 
-        $controller = new $controllerClass($this->request, $this->response, $this->db);
+        $controller = new $controllerClass($this->request, $this->response, $this->db, $this->app);
         $controller->{$action}();
     }
 

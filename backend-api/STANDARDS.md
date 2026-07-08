@@ -136,3 +136,29 @@ Standart davranışa dönmek için bu bayrak tek yerden `false` yapılır.
 - İş kuralı / doğrulama hataları `HttpException` fırlatır.
 - Beklenmeyen hatalar front controller'da `Throwable` ile yakalanır.
 - Hata detayı yalnızca `config/app.php` içindeki `debug = true` iken yanıta eklenir.
+
+## Sunucuya özel ayarlar (config/app.local.php)
+
+`config/app.php` repoya girer ve her güncellemede üzerine yazılır. Sunucuya özel /
+gizli değerler (sırlar, bu sitede farklı olan `base_path`/`allowed_ips`) bunun yerine
+**`config/app.local.php`** dosyasına yazılır:
+
+- Git'e girmez (`.gitignore`), otomatik güncelleme bu dosyaya **asla dokunmaz**.
+- `bootstrap.php` içinde `config/app.php` ile birleştirilir (`app.local.php` önceliklidir).
+- Şablon: `config/app.local.php.example` — sunucuda `app.local.php` adıyla kopyalanıp doldurulur.
+
+## Otomatik güncelleme (400 site — git binary'siz)
+
+Sunucularda `git` kurulu olmayabileceği / `shell_exec` kapalı olabileceği için güncelleme
+**salt PHP** ile yapılır: GitHub API'den branch'in son commit'i bulunur, o commit'in
+`.zip` arşivi indirilir (`ZipArchive`), mevcut `backend-api/` üzerine **sadece kopyalanır**
+(hiçbir şey silinmez — bu yüzden `config/app.local.php`, `.backups/`, `.update.log`,
+`.deploy-state.json` gibi arşivde olmayan dosyalar dokunulmadan kalır).
+
+- `POST /backend-api/update` → günceller. Body: `{"force": true}` SHA aynı olsa bile yeniden kurar.
+- `GET  /backend-api/update/status` → indirmeden, kurulu commit SHA'sını döner.
+- Her iki uç da `X-Deploy-Secret` header'ı ister (`config/app.local.php` → `deploy_secret`).
+  Bu, müşteri Bearer token'ından (AuthToken) tamamen ayrı bir mekanizmadır.
+- Güncellemeden önce mevcut `backend-api/` otomatik olarak `.backups/{tarih-saat}.zip`
+  içine yedeklenir (son 3 yedek tutulur) — bir güncelleme bozarsa elle geri yüklenebilir.
+- Kod: `src/Core/Updater.php` (indirme/kopyalama/yedekleme mantığı), `src/Controller/UpdateController.php` (uç + sır kontrolü).

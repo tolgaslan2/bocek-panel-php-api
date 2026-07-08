@@ -45,7 +45,7 @@ try {
         (new AuthToken($db, $request))->handle();
     }
 
-    (new Router($request, $response, $db))->dispatch();
+    (new Router($request, $response, $db, $app))->dispatch();
 } catch (HttpException $e) {
     $message = $e->getMessage();
     if ($app['debug'] && $e->getPrevious() !== null) {

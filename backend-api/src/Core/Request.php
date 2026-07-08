@@ -115,6 +115,29 @@ final class Request
     }
 
     /**
+     * Keyfi bir isteği header'ını okur (örn. "X-Deploy-Secret").
+     *
+     * @return string|null
+     */
+    public function header(string $name)
+    {
+        $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+        if (!empty($_SERVER[$key])) {
+            return trim($_SERVER[$key]);
+        }
+
+        if (function_exists('apache_request_headers')) {
+            foreach (apache_request_headers() as $k => $value) {
+                if (strcasecmp($k, $name) === 0) {
+                    return trim($value);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return string|null
      */
     private function authorizationHeader()
