@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Sunucuya özel ayar dosyası ŞABLONU. Bu dosyayı sunucuda
+ * "app.local.php" adıyla kopyala ve gerçek değerleri gir.
+ *
+ * app.local.php GİT'E GİRMEZ (.gitignore'da) ve otomatik güncelleme
+ * (backend-api/update) BU DOSYAYA DOKUNMAZ — böylece her sitenin kendi
+ * sırları ve site-özel ayarları (base_path, allowed_ips vb.) güncelleme
+ * sırasında ASLA ezilmez.
+ *
+ * config/app.php (repo'daki, güncellemede üzerine yazılan) ile bu dosya
+ * bootstrap.php içinde birleştirilir; buradaki değerler önceliklidir.
+ */
+
+return [
+    // Otomatik güncelleme (backend-api/update) için paylaşılan sır.
+    // Rastgele, uzun bir değer üret: bin2hex(random_bytes(24))
+    'deploy_secret' => 'Deneme123',
+
+    // GitHub private repo ise: sadece bu repoya "Contents: Read-only"
+    // izniyle bir Fine-grained Personal Access Token.
+    'github_token' => '',
+
+    // Bu sitede base_path farklıysa burada override et (örn. kök dizinde ise '').
+    // 'base_path' => '/backend-api',
+
+    // Bu sitede farklı IP kısıtı gerekiyorsa override et.
+    // 'allowed_ips' => ['1.2.3.4'],
+
+    // Güncelleme sırasında zip'in açıldığı geçici klasör. Varsayılan
+    // (config/app.php) backend-api'nin BİR ÜSTÜNDEKİ uploads/git-temp'tir.
+    // Bu sitede uploads/ farklı bir yerdeyse (örn. ayrı bir cdn subdomain'i
+    // altında) burada TAM yolu ver. Örnek — backend-api iki üstteki
+    // cdn.villakilavuzu.com/uploads/git-temp'i kullanmalıysa:
+    // 'git_temp_dir' => dirname(__DIR__, 3) . '/cdn.villakilavuzu.com/uploads/git-temp',
+];

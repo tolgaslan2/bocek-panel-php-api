@@ -1,0 +1,9 @@
+.DS_Store
+
+# Sunucuya özel sırlar / ayarlar — asla git'e girmez, otomatik güncelleme dokunmaz.
+backend-api/config/app.local.php
+
+# Otomatik güncellemenin ürettiği çalışma zamanı dosyaları (her sunucuda farklı).
+backend-api/.deploy-state.json
+backend-api/.update.log
+backend-api/.backups/

@@ -34,7 +34,7 @@ return [
 
     // Auth GEREKTİRMEYEN kaynaklar (ilk yol segmenti). tokens = token üretimi,
     // update = otomatik güncelleme (kendi "deploy_secret" ile korunur).
-    'public_resources' => ['tokens', 'update'],
+    'public_resources' => ['tokens', 'update','reservationsCreate'],
 
     // DB bilgileri ($config['db']) ve Domain sabitinin geldiği,
     // repo dışındaki config dosyasının yolu (backend-api/../api/config.php).
@@ -47,6 +47,9 @@ return [
     'github_repo'   => 'bocek-panel-php-api',
     'github_branch' => 'main',
 
-    // GitHub private repo ise: sadece bu repoya "Contents: Read-only"
-    // izniyle bir Fine-grained Personal Access Token.
+    // İndirilen zip'in geçici olarak açıldığı, YAZILABİLİR bir klasör.
+    // Site yapısı farklıysa (örn. uploads/ başka bir subdomain'in altındaysa)
+    // config/app.local.php içinde override et — her sitede değişebilir,
+    // bu yüzden burada sadece en yaygın düzen için bir VARSAYILAN var.
+    'git_temp_dir' => dirname(__DIR__, 2) . '/uploads/git-temp',
 ];
