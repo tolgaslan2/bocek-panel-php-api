@@ -13,7 +13,7 @@ final class ReservationsCreateController extends Controller
      * @query page int Sayfa numarası
      * @query per_page int Sayfa başına kayıt (0 veya "tumu" => tümü)
      * @query durum int Rezervasyon durumu (çoklu olabilir)
-     * @query musteri string Müşteri adı/kelime araması
+     * @query musteri string Müşteri adı/kelime aramasıss
      */
     public function index(): void
     {
