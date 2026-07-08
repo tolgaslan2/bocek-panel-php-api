@@ -9,11 +9,7 @@ use PDO;
 final class ReservationsCreateController extends Controller
 {
     /**
-     * @Post
-     * @query page int Sayfa numarası
-     * @query per_page int Sayfa başına kayıt (0 veya "tumu" => tümü)
-     * @query durum int Rezervasyon durumu (çoklu olabilir)
-     * @query musteri string Müşteri adı/kelime aramasıss
+     * @Get
      */
     public function index(): void
     {
