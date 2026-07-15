@@ -43,6 +43,11 @@ return [
     // Rezervasyon filtrelerinde acenta_users tablosundan alt acentalar cekilsin mi?
     'reservation_filters_use_acenta_users' => false,
 
+    // Homes management ekraninda opsiyonel homes kolonlari varsa true, yoksa false.
+    'homes_management_use_showcase_column' => false,
+    'homes_management_use_favorite_column' => false,
+    'homes_management_use_opportunity_column' => false,
+
     // IP beyaz liste. Boş bırakılırsa IP kontrolü KAPALI olur.
     'allowed_ips' => [
         '31.210.157.219', // natsisa

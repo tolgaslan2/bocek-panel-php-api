@@ -41,7 +41,16 @@ final class ReservationdetailController extends Controller
         $homeId = isset($reservation['evid']) ? (int) $reservation['evid'] : 0;
         $dolu = $this->fetchOne($pdo, 'SELECT * FROM dolu WHERE kayitid = :id', [':id' => $id]);
         $villa = $homeId > 0
-            ? $this->fetchOne($pdo, "SELECT *, ISNULL(evsahibi, '0') AS evsahibi FROM homes WHERE id = :id", [':id' => $homeId])
+            ? $this->fetchOne(
+                $pdo,
+                "SELECT *,
+                        ISNULL(evsahibi, '0') AS evsahibi,
+                        ISNULL((SELECT baslik FROM tip WHERE id = homes.emlak_tipi), '') AS emlak_tipi_baslik,
+                        ISNULL((SELECT baslik FROM destinations WHERE id = homes.emlak_bolgesi), '') AS emlak_bolgesi_baslik
+                 FROM homes
+                 WHERE id = :id",
+                [':id' => $homeId]
+            )
             : null;
 
         $owner = null;
@@ -58,7 +67,8 @@ final class ReservationdetailController extends Controller
             ? $this->fetchOne($pdo, 'SELECT * FROM KiralamaTakvimi.CalendarHomes WHERE homesId = :id', [':id' => $homeId])
             : null;
 
-        $personInfo = $this->fetchOne($pdo, 'SELECT * FROM kisi_bilgileri WHERE siparis_kodu = :id', [':id' => $id]);
+        $personInfoList = $this->fetchAll($pdo, 'SELECT * FROM kisi_bilgileri WHERE siparis_kodu = :id ORDER BY id ASC', [':id' => $id]);
+        $personInfo = $personInfoList !== [] ? $personInfoList[0] : false;
         $partialPayments = $this->fetchAll(
             $pdo,
             "SELECT *,
@@ -115,7 +125,19 @@ final class ReservationdetailController extends Controller
             );
         }
 
+        $personCountInfo = $this->personCountInfo($reservation, $personInfo ?: []);
+        $detailSections = $this->detailSections(
+            $reservation,
+            $dolu ?: [],
+            $villa ?: [],
+            $personCountInfo,
+            $documentLogs,
+            $documentState ?: [],
+            $personInfoList
+        );
+
         $this->response->success([
+            'detay' => $detailSections,
             'rs' => $reservation,
             'dolutable' => $dolu,
             'villa' => $villa,
@@ -186,11 +208,425 @@ final class ReservationdetailController extends Controller
                     ISNULL(promotionCode, '') AS promotionCode,
                     CONVERT(varchar, kayitlar.rez_tarihi, 104) AS rez_tarihix,
                     CONVERT(varchar, kayitlar.gelecek_tarih, 104) AS gelecek_tarihx,
+                    ISNULL((SELECT baslik FROM satis_kanallari WHERE id = kayitlar.satis_kanallari_id), '') AS satiskanali,
                     ISNULL(arandi, 0) AS arandi
                 FROM kayitlar
                 WHERE id = :id";
 
         return $this->fetchOne($pdo, $sql, [':id' => $id]);
+    }
+
+    /**
+     * @param array<string,mixed> $reservation
+     * @param array<string,mixed> $personInfo
+     * @return array{yetiskin:int,cocuk:int,bebek:int,toplam:int}
+     */
+    private function personCountInfo(array $reservation, array $personInfo): array
+    {
+        $sources = [$reservation, $personInfo];
+
+        $adult = $this->firstIntFrom($sources, ['yetiskin', 'yetiskin_sayisi', 'adult', 'adults'], -1);
+        if ($adult < 0) {
+            $adult = $this->firstIntFrom([$reservation], ['kisi'], 0);
+        }
+        $child = $this->firstIntFrom($sources, ['cocuk', 'cocuk_sayisi', 'child', 'children'], 0);
+        $baby = $this->firstIntFrom($sources, ['bebek', 'bebek_sayisi', 'infant', 'baby'], 0);
+
+        return [
+            'yetiskin' => $adult,
+            'cocuk' => $child,
+            'bebek' => $baby,
+            'toplam' => $adult + $child + $baby,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $reservation
+     * @param array<string,mixed> $dolu
+     * @param array<string,mixed> $villa
+     * @param array{yetiskin:int,cocuk:int,bebek:int,toplam:int} $personCountInfo
+     * @param array<string,array<int,array<string,mixed>>> $documentLogs
+     * @param array<string,mixed> $documentState
+     * @param array<int,array<string,mixed>> $personInfoList
+     * @return array<string,array<string,mixed>>
+     */
+    private function detailSections(
+        array $reservation,
+        array $dolu,
+        array $villa,
+        array $personCountInfo,
+        array $documentLogs,
+        array $documentState,
+        array $personInfoList
+    ): array
+    {
+        return [
+            'rezervasyonBilgileri' => [
+                'rezervasyonNo' => $this->intValue($this->firstValueFrom([$reservation], ['id'])),
+                'emlakIsmi' => $this->firstValueFrom([$villa, $reservation], ['baslik', 'villa_adi', 'adi', 'emlak_adi']),
+                'emlak_tipi' => $this->firstValueFrom([$villa], ['emlak_tipi_baslik']),
+                'emlak_bolgesi' => $this->firstValueFrom([$villa], ['emlak_bolgesi_baslik']),
+                'resim_liste' => $this->homeImages($villa),
+                'kapak_resmi' => $this->homeCoverImage($villa),
+                'satisKanali' => $this->firstValueFrom([$reservation], ['satiskanali', 'satis_kanali', 'satisKanali']) ?: 'site',
+                'siteDil' => $this->firstValueFrom([$reservation], ['site_dil', 'siteDil', 'dil', 'lang', 'language']) ?: 'tr',
+                'durum' => [
+                    'id' => $this->intValue($this->firstValueFrom([$dolu, $reservation], ['durum'])),
+                    'text' => $this->reservationStatusText($this->intValue($this->firstValueFrom([$dolu, $reservation], ['durum']))),
+                ],
+            ],
+            'rezervasyonDetaylari' => [
+                'girisTarihi' => $this->firstValueFrom([$reservation, $dolu], ['rez_tarihix', 'giris_tarihi', 'rez_tarihi', 'tarih']),
+                'cikisTarihi' => $this->firstValueFrom([$reservation, $dolu], ['gelecek_tarihx', 'cikis_tarihi', 'gelecek_tarih', 'tarih2']),
+                'geceSayisi' => $this->nightCount($reservation),
+                'yetiskin' => $personCountInfo['yetiskin'],
+                'cocuk' => $personCountInfo['cocuk'],
+                'bebek' => $personCountInfo['bebek'],
+                'musteriNotu' => $this->firstValueFrom([$reservation], ['oznot', 'oz_not', 'musteri_notu', 'not']),
+            ],
+            'misafirler' => $this->guestInfo($personInfoList),
+            'odemeBilgileri' => [
+                'odemeTuru' => [
+                    'id' => $this->intValue($this->firstValueFrom([$reservation], ['tur', 'odeme_turu'])),
+                    'text' => $this->paymentTypeText($this->intValue($this->firstValueFrom([$reservation], ['tur', 'odeme_turu']))),
+                ],
+                'odemeSekli' => [
+                    'id' => $this->intValue($this->firstValueFrom([$reservation], ['odeme', 'odeme_sekli'])),
+                    'text' => $this->paymentMethodText($this->intValue($this->firstValueFrom([$reservation], ['odeme', 'odeme_sekli']))),
+                ],
+                'paraBirimi' => $this->firstValueFrom([$reservation], ['btrans_para_birimi', 'doviz']),
+                'toplamUcret' => $this->moneyValue($this->firstValueFrom([$reservation], ['toplam_tutar'])),
+                'onOdeme' => $this->moneyValue($this->firstValueFrom([$reservation], ['on_odeme'])),
+                'kalanOdeme' => $this->moneyValue($this->firstValueFrom([$reservation], ['kalan'])),
+                'kazancOran' => $this->moneyValue($this->firstValueFrom([$reservation], ['kazancorani'])),
+                'depozitoOrani' => $this->moneyValue($this->firstValueFrom([$reservation, $villa], ['depozito_orani', 'depozitoOrani', 'depozitoorani'])),
+                'temizlikUcreti' => $this->moneyValue($this->firstValueFrom([$reservation, $villa], ['temizlik', 'temizlik_ucreti', 'temizlikUcreti'])),
+                'depozitoUcretiGiriste' => $this->moneyValue($this->firstValueFrom([$reservation, $villa], ['depozito_ucreti', 'depozitoUcreti', 'depozito'])),
+            ],
+            'sozlesmeler' => [
+                'belgeKayitlari' => $documentState,
+                'sozlesme' => $this->documentLogsOrNotSent($documentLogs, ['Sözleşme', 'SÃ¶zleÅŸme']),
+                'odemeBelgesi' => $this->documentLogsOrNotSent($documentLogs, ['Ödeme Belgesi', 'Ã–deme Belgesi']),
+                'iptalSartlari' => $this->documentLogsOrNotSent($documentLogs, ['İptal Şartları', 'Ä°ptal ÅžartlarÄ±']),
+                'kiralamaSozlesmesi' => $this->documentLogsOrNotSent($documentLogs, ['Kiralama Sözleşmesi', 'Kiralama SÃ¶zleÅŸmesi']),
+                'islemKaydi' => $documentLogs,
+            ],
+        ]; 
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $personInfoList
+     * @return array<int,array<string,mixed>>
+     */
+    private function guestInfo(array $personInfoList): array
+    {
+        $guests = [];
+
+        foreach ($personInfoList as $personInfo) {
+            $parsedGuests = $this->guestsFromPeopleColumn($personInfo);
+            if ($parsedGuests !== []) {
+                foreach ($parsedGuests as $guest) {
+                    $guests[] = $this->withoutEmptyValues($guest);
+                }
+                continue;
+            }
+
+            $guests[] = $this->withoutEmptyValues([
+                'id' => $this->nullableIntValue($this->firstValueFrom([$personInfo], ['id'])),
+                'siparisKodu' => $this->nullableIntValue($this->firstValueFrom([$personInfo], ['siparis_kodu'])),
+                'tip' => null,
+                'isim' => $this->firstValueFrom([$personInfo], ['isim']),
+                'tc' => $this->firstValueFrom([$personInfo], ['tc']),
+                'eposta' => $this->firstValueFrom([$personInfo], ['eposta']),
+                'adres' => $this->firstValueFrom([$personInfo], ['adres']),
+                'onay' => $this->boolValue($this->firstValueFrom([$personInfo], ['onay'])),
+                'telefon' => $this->firstValueFrom([$personInfo], ['telefon']),
+                'faturatipi' => $this->nullableIntValue($this->firstValueFrom([$personInfo], ['faturatipi'])),
+                'vergidairesi' => $this->firstValueFrom([$personInfo], ['vergidairesi']),
+            ]);
+        }
+
+        return $guests;
+    }
+
+    /**
+     * @param array<string,mixed> $personInfo
+     * @return array<int,array<string,mixed>>
+     */
+    private function guestsFromPeopleColumn(array $personInfo): array
+    {
+        $raw = $this->firstValueFrom([$personInfo], ['kisiler']);
+        if ($raw === null || trim((string) $raw) === '') {
+            return [];
+        }
+
+        $parts = explode('##', (string) $raw);
+        if (count($parts) < 2) {
+            return [];
+        }
+
+        $types = $this->splitPeoplePart($parts[0]);
+        $names = $this->splitPeoplePart($parts[1]);
+        $identityNumbers = $this->splitPeoplePart($parts[2] ?? '');
+        $max = max(count($types), count($names), count($identityNumbers));
+        if ($max === 0) {
+            return [];
+        }
+
+        $guests = [];
+        for ($i = 0; $i < $max; $i++) {
+            $guests[] = $this->withoutEmptyValues([
+                'id' => $this->nullableIntValue($this->firstValueFrom([$personInfo], ['id'])),
+                'siparisKodu' => $this->nullableIntValue($this->firstValueFrom([$personInfo], ['siparis_kodu'])),
+                'tip' => $types[$i] ?? null,
+                'isim' => $names[$i] ?? null,
+                'tc' => $identityNumbers[$i] ?? null,
+            ]);
+        }
+
+        return $guests;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function withoutEmptyValues(array $row): array
+    {
+        return array_filter($row, function ($value) {
+            return $value !== null && $value !== '';
+        });
+    }
+
+    /**
+     * @return string[]
+     */
+    private function splitPeoplePart(string $value): array
+    {
+        return array_values(array_filter(array_map('trim', explode(',', $value)), function ($item) {
+            return $item !== '';
+        }));
+    }
+
+    /**
+     * @param array<string,mixed> $villa
+     * @return string[]
+     */
+    private function homeImages(array $villa): array
+    {
+        $resimStr = isset($villa['resim']) ? (string) $villa['resim'] : '';
+        if ($resimStr === '') {
+            return [];
+        }
+
+        $cdnBase = (defined('Cdn') ? (string) constant('Cdn') : '') . '/uploads/small/';
+        $images = array_values(array_filter(array_map('trim', explode(',', $resimStr))));
+
+        return array_map(function ($image) use ($cdnBase) {
+            return $cdnBase . $image;
+        }, $images);
+    }
+
+    /**
+     * @param array<string,mixed> $villa
+     */
+    private function homeCoverImage(array $villa): ?string
+    {
+        $images = $this->homeImages($villa);
+
+        return $images !== [] ? $images[0] : null;
+    }
+
+    /**
+     * @param array<string,array<int,array<string,mixed>>> $logs
+     * @param string[] $keys
+     * @return array<int,array<string,mixed>>
+     */
+    private function documentLogs(array $logs, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (isset($logs[$key])) {
+                return $logs[$key];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string,array<int,array<string,mixed>>> $logs
+     * @param string[] $keys
+     * @return array<int,array<string,mixed>>|string
+     */
+    private function documentLogsOrNotSent(array $logs, array $keys)
+    {
+        $items = $this->documentLogs($logs, $keys);
+
+        return $items === [] ? 'Gönderilmedi' : $items;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $sources
+     * @param string[] $keys
+     */
+    private function firstIntFrom(array $sources, array $keys, int $default): int
+    {
+        foreach ($sources as $source) {
+            foreach ($keys as $key) {
+                if (isset($source[$key]) && $source[$key] !== '') {
+                    return (int) $source[$key];
+                }
+            }
+        }
+
+        return $default;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $sources
+     * @param string[] $keys
+     * @return mixed|null
+     */
+    private function firstValueFrom(array $sources, array $keys)
+    {
+        foreach ($sources as $source) {
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $source) && $source[$key] !== '') {
+                    return $source[$key];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function intValue($value): int
+    {
+        return $value === null || $value === '' ? 0 : (int) $value;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function nullableIntValue($value): ?int
+    {
+        return $value === null || $value === '' ? null : (int) $value;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function boolValue($value): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (bool) $value;
+    }
+
+    /**
+     * @param mixed $value
+     * @return float|int|null
+     */
+    private function moneyValue($value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $normalized = trim((string) $value);
+        $normalized = preg_replace('/[^\d,.-]/', '', $normalized);
+        if ($normalized === null || $normalized === '' || $normalized === '-' || $normalized === ',') {
+            return null;
+        }
+
+        if (strpos($normalized, ',') !== false) {
+            $normalized = str_replace('.', '', $normalized);
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        return round((float) $normalized, 2);
+    }
+
+    /**
+     * @param array<string,mixed> $reservation
+     */
+    private function nightCount(array $reservation): int
+    {
+        $gece = $this->firstValueFrom([$reservation], ['gece', 'gece_sayisi']);
+        if ($gece !== null && $gece !== '') {
+            return (int) $gece;
+        }
+
+        if (empty($reservation['rez_tarihi']) || empty($reservation['gelecek_tarih'])) {
+            return 0;
+        }
+
+        try {
+            $start = new \DateTime((string) $reservation['rez_tarihi']);
+            $end = new \DateTime((string) $reservation['gelecek_tarih']);
+            return max(0, (int) $start->diff($end)->format('%a'));
+        } catch (\Exception $e) {
+            return 0;
+        }
+    }
+
+    private function reservationStatusText(int $status): string
+    {
+        switch ($status) {
+            case 0:
+                return 'Onay Bekliyor';
+            case 1:
+                return 'Ödeme Bekliyor';
+            case 2:
+                return 'Süre Doldu';
+            case 3:
+                return 'Onaylandı';
+            case 4:
+                return 'İptal Edildi';
+            case 5:
+                return 'Silindi';
+            case 6:
+                return 'Açık Rezervasyon';
+            default:
+                return '-';
+        }
+    }
+
+    private function paymentTypeText(int $type): string
+    {
+        switch ($type) {
+            case 1:
+                return 'Ön Ödeme';
+            case 2:
+                return 'Tamamı';
+            default:
+                return '-';
+        }
+    }
+
+    private function paymentMethodText(int $method): string
+    {
+        switch ($method) {
+            case 1:
+                return 'Kredi Kartı';
+            case 2:
+                return 'Havale';
+            case 3:
+                return 'Western Union';
+            case 4:
+                return 'Sanal Kart';
+            case 5:
+                return 'Sanal Havale';
+            case 6:
+                return 'Nakit';
+            default:
+                return '-';
+        }
     }
 
     /**

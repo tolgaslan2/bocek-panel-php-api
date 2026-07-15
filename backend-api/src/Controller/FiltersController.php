@@ -186,6 +186,233 @@ final class FiltersController extends Controller
     }
 
     /**
+     * Homes management list filters.
+     *
+     * @Get("homes-management")
+     */
+    public function homesManagement(): void
+    {
+        $pdo = $this->db->pdo();
+
+        $types = $pdo->query(
+            "SELECT id, baslik AS title
+             FROM tip
+             ORDER BY baslik ASC"
+        )->fetchAll();
+
+        $destinations = $pdo->query(
+            "SELECT id, baslik AS title, cat AS parent_id
+             FROM destinations
+             ORDER BY baslik ASC"
+        )->fetchAll();
+
+        $regions = [];
+        foreach ($destinations as $destination) {
+            if ((int) $destination['parent_id'] === 0) {
+                $regions[] = [
+                    'id' => (int) $destination['id'],
+                    'title' => $destination['title'] . ' / Tumu',
+                    'parent_id' => 0,
+                ];
+                continue;
+            }
+
+            foreach ($destinations as $parent) {
+                if ((int) $parent['id'] === (int) $destination['parent_id']) {
+                    $regions[] = [
+                        'id' => (int) $destination['id'],
+                        'title' => $parent['title'] . ' / ' . $destination['title'],
+                        'parent_id' => (int) $destination['parent_id'],
+                    ];
+                    break;
+                }
+            }
+        }
+
+        $currentYear = (int) date('Y');
+        $years = range($currentYear, $currentYear + 3);
+        $typeOptions = array_map(function (array $row): array {
+            return [
+                'id' => (int) $row['id'],
+                'title' => $row['title'],
+            ];
+        }, $types);
+
+        $this->response->success([
+            // 'types' => $typeOptions,
+            'tipler' => $typeOptions,
+            // 'regions' => $regions,
+            'bolgeler' => $regions,
+            // 'years' => $years,
+            'yillar' => $years,
+            'table_colons' => $this->homesManagementTableColumns(),
+            'static_filters' => [
+                // 'type' => $typeOptions,
+                // 'active' => [
+                //     ['id' => '', 'title' => 'Tumu'],
+                //     ['id' => '1', 'title' => 'Aktif'],
+                //     ['id' => '0', 'title' => 'Pasif'],
+                //     ['id' => '2', 'title' => 'Aktif - Takvime Bagli'],
+                //     ['id' => '3', 'title' => 'Pasif - Takvime Bagli'],
+                //     ['id' => '4', 'title' => 'Aktif - Takvime Bagli Degil'],
+                //     ['id' => '5', 'title' => 'Pasif - Takvime Bagli Degil'],
+                // ],
+                // 'showcase' => [
+                //     ['id' => '', 'title' => 'Tumu'],
+                //     ['id' => '1', 'title' => 'Aktif'],
+                //     ['id' => '0', 'title' => 'Pasif'],
+                // ],
+                // 'favorite' => [
+                //     ['id' => '', 'title' => 'Tumu'],
+                //     ['id' => '1', 'title' => 'Aktif'],
+                //     ['id' => '0', 'title' => 'Pasif'],
+                // ],
+                // 'opportunity' => [
+                //     ['id' => '', 'title' => 'Tumu'],
+                //     ['id' => '1', 'title' => 'Aktif'],
+                //     ['id' => '0', 'title' => 'Pasif'],
+                // ],
+                // 'last_minute' => [
+                //     ['id' => '', 'title' => 'Tumu'],
+                //     ['id' => '1', 'title' => 'Var'],
+                //     ['id' => '0', 'title' => 'Yok'],
+                // ],
+                // 'missing_year' => [
+                //     ['id' => '0', 'title' => 'Sezon Var'],
+                //     ['id' => '1', 'title' => 'Sezon Yok'],
+                // ],
+                // 'document' => [
+                //     ['id' => 'active', 'title' => 'Belge Aktif'],
+                //     ['id' => 'passive', 'title' => 'Belge Pasif'],
+                //     ['id' => 'document', 'title' => 'Belge Numarasi Var'],
+                //     ['id' => 'document-no', 'title' => 'Belge Numarasi Yok'],
+                //     ['id' => 'application', 'title' => 'Basvuru Numarasi Var'],
+                //     ['id' => 'application-no', 'title' => 'Basvuru Numarasi Yok'],
+                //     ['id' => 'temporary', 'title' => 'Sureli Belge'],
+                //     ['id' => 'permanent', 'title' => 'Suresiz Belge'],
+                // ],
+                // 'sort' => [
+                //     ['id' => '1', 'title' => 'Siralama Artan'],
+                //     ['id' => '2', 'title' => 'Siralama Azalan'],
+                //     ['id' => '3', 'title' => 'ID Artan'],
+                //     ['id' => '4', 'title' => 'ID Azalan'],
+                // ],
+                'tip' => $typeOptions,
+                'aktif' => [
+                    ['id' => '', 'title' => 'Tumu'],
+                    ['id' => '1', 'title' => 'Aktif'],
+                    ['id' => '0', 'title' => 'Pasif'],
+                    ['id' => '2', 'title' => 'Aktif - Takvime Bagli'],
+                    ['id' => '3', 'title' => 'Pasif - Takvime Bagli'],
+                    ['id' => '4', 'title' => 'Aktif - Takvime Bagli Degil'],
+                    ['id' => '5', 'title' => 'Pasif - Takvime Bagli Degil'],
+                ],
+                'vitrin' => [
+                    ['id' => '', 'title' => 'Tumu'],
+                    ['id' => '1', 'title' => 'Aktif'],
+                    ['id' => '0', 'title' => 'Pasif'],
+                ],
+                'favori' => [
+                    ['id' => '', 'title' => 'Tumu'],
+                    ['id' => '1', 'title' => 'Aktif'],
+                    ['id' => '0', 'title' => 'Pasif'],
+                ],
+                'firsat' => [
+                    ['id' => '', 'title' => 'Tumu'],
+                    ['id' => '1', 'title' => 'Aktif'],
+                    ['id' => '0', 'title' => 'Pasif'],
+                ],
+                'sondakika' => [
+                    ['id' => '', 'title' => 'Tumu'],
+                    ['id' => '1', 'title' => 'Var'],
+                    ['id' => '0', 'title' => 'Yok'],
+                ],
+                'yilrw' => [
+                    ['id' => '0', 'title' => 'Sezon Var'],
+                    ['id' => '1', 'title' => 'Sezon Yok'],
+                ],
+                'gavelBelge' => [
+                    ['id' => 'active', 'title' => 'Belge Aktif'],
+                    ['id' => 'passive', 'title' => 'Belge Pasif'],
+                    ['id' => 'document', 'title' => 'Belge Numarasi Var'],
+                    ['id' => 'document-no', 'title' => 'Belge Numarasi Yok'],
+                    ['id' => 'application', 'title' => 'Basvuru Numarasi Var'],
+                    ['id' => 'application-no', 'title' => 'Basvuru Numarasi Yok'],
+                    ['id' => 'temporary', 'title' => 'Sureli Belge'],
+                    ['id' => 'permanent', 'title' => 'Suresiz Belge'],
+                ],
+                'sira' => [
+                    ['id' => '1', 'title' => 'Siralama Artan'],
+                    ['id' => '2', 'title' => 'Siralama Azalan'],
+                    ['id' => '3', 'title' => 'ID Artan'],
+                    ['id' => '4', 'title' => 'ID Azalan'],
+                ],
+            ],
+            // 'query_params' => [
+            //     'page',
+            //     'per_page',
+            //     'keyword',
+            //     'title',
+            //     'region',
+            //     'type',
+            //     'active',
+            //     'showcase',
+            //     'favorite',
+            //     'opportunity',
+            //     'last_minute',
+            //     'year',
+            //     'missing_year',
+            //     'document',
+            //     'sort',
+            // ],
+            'legacy_query_params' => [
+                'sayfa',
+                'kelime',
+                'baslik',
+                'bolge',
+                'tip',
+                'aktif',
+                'vitrin',
+                'favori',
+                'firsat',
+                'sondakika',
+                'yil',
+                'yilrw',
+                'gavelBelge',
+                'sira',
+            ],
+        ]);
+    }
+
+    /**
+     * HomesManagementController tarafindan donen liste alanlari.
+     *
+     * @return array<int,array{id:string,baslik:string}>
+     */
+    private function homesManagementTableColumns(): array
+    {
+        return [
+            ['id' => 'id', 'baslik' => 'ID'],
+            ['id' => 'code', 'baslik' => 'Kod'],
+            ['id' => 'title', 'baslik' => 'Baslik'],
+            ['id' => 'gavel_title', 'baslik' => '7464 Baslik'],
+            ['id' => 'sort_order', 'baslik' => 'Siralama'],
+            ['id' => 'image', 'baslik' => 'Resim'], 
+            ['id' => 'active', 'baslik' => 'Aktif'],
+            ['id' => 'showcase', 'baslik' => 'Vitrin'],
+            ['id' => 'favorite', 'baslik' => 'Favori'],
+            ['id' => 'opportunity', 'baslik' => 'Firsat'],
+            ['id' => 'region_id', 'baslik' => 'Bolge ID'],
+            ['id' => 'region_title', 'baslik' => 'Bolge'],
+            ['id' => 'document_passive', 'baslik' => 'Belge Pasif'],
+            ['id' => 'document_button_class', 'baslik' => 'Belge Buton Sinifi'],
+            ['id' => 'rental_calendar', 'baslik' => 'Kiralama Takvimi'],
+            ['id' => 'rental_calendar_price_sync', 'baslik' => 'Takvim Fiyat Guncelleme'],
+            ['id' => 'has_season', 'baslik' => 'Sezon Var'],
+        ];
+    }
+
+    /**
      * ASP siparis_yonetimi.asp table_colons secenekleri.
      *
      * @return array<int,array{id:string,baslik:string}>
